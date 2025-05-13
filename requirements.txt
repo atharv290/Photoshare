@@ -1,5 +1,6 @@
 Flask==2.3.3
 gunicorn==20.1.0
+mysql-connector-python
 Werkzeug==2.3.7
 Flask-MySQLdb==1.0.0
 numpy==1.24.0  # Updated to support Python 3.11
