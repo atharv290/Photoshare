@@ -1,13 +1,10 @@
-from flask import Flask, render_template, request, redirect, url_for, jsonify, session,flash
-from flask_mysqldb import MySQL
+from flask import Flask, render_template, request, redirect, url_for, jsonify, session, flash
+import mysql.connector
 import hashlib
 import os
 from email.mime.multipart import MIMEMultipart
 import base64
-import os
 from werkzeug.utils import secure_filename
-from flask import Flask, request, jsonify
-from flask_mysqldb import MySQL
 import random
 import datetime
 import string
@@ -21,82 +18,72 @@ from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.pipeline import Pipeline
 from sklearn.compose import ColumnTransformer
-from MySQLdb.cursors import DictCursor
 from sklearn.impute import SimpleImputer
+
+# === Helper Functions ===
 def generate_random_code(length=8):
-    characters = string.ascii_letters + string.digits  # Combine letters and digits
+    characters = string.ascii_letters + string.digits
     return ''.join(random.choices(characters, k=length))
-# Load the dataset
-# Load the dataset
+
+# === Load Dataset ===
 if os.path.exists('public_html/Data/photography_dataset.csv'):
     dataset_path = 'public_html/Data/photography_dataset.csv'
     print(f"Dataset found at: {dataset_path}")
-    data = pd.read_csv(dataset_path, na_values=["", "NA", "N/A", "null"])  # Handle empty values
+    data = pd.read_csv(dataset_path, na_values=["", "NA", "N/A", "null"])
     print("Dataset loaded successfully")
 else:
     print("Dataset not found. Using default data.")
-    data = pd.DataFrame()  # Use an empty DataFrame as a fallback
+    data = pd.DataFrame()
 
-# Continue with your app logic
+# === Preprocess and Train Model ===
 if not data.empty:
-    # Check if required columns exist
     required_columns = ['Event Type', 'Location', 'Editing Level', 'Additional Services',
                         'Duration (hrs)', 'Photographers', 'Photographer Rating', 'Cost']
     missing_columns = [col for col in required_columns if col not in data.columns]
-    
+
     if missing_columns:
         print(f"Missing required columns: {missing_columns}. Skipping model training.")
     else:
-        # Define X and y
         X = data.drop(columns=['Cost'])
         y = data['Cost']
-
-        # Preprocessing features
         categorical_features = ['Event Type', 'Location', 'Editing Level', 'Additional Services']
         numeric_features = ['Duration (hrs)', 'Photographers', 'Photographer Rating']
-
-        # Define transformers
         categorical_transformer = OneHotEncoder(handle_unknown='ignore')
         numeric_transformer = Pipeline(steps=[
             ('imputer', SimpleImputer(strategy='mean'))
         ])
-
-        # Build column transformer
         preprocessor = ColumnTransformer([
             ('cat', categorical_transformer, categorical_features),
             ('num', numeric_transformer, numeric_features)
         ])
-
-        # Create pipeline
         model = Pipeline([
             ('preprocessor', preprocessor),
             ('regressor', LinearRegression())
         ])
-
-        # Split the dataset
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-
-        # Train the model
         model.fit(X_train, y_train)
         print("Model trained successfully")
 else:
     print("No data available for processing. Skipping model training.")
-# Example usag
+
+# === Flask App Setup ===
 app = Flask(__name__)
-# Set the directory for image uploads
+app.secret_key = '1234'
 app.config['UPLOAD_FOLDER'] = 'public_html/static/uploads'
-# Set allowed file extensions for security
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'bmp'}
-# Check if the file is an allowed image format
+
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-#import mysql.connector
-app.secret_key = '1234'
-app.config['MYSQL_HOST'] = '106.215.180.86'
-app.config['MYSQL_USER'] = 'MYDB1234'
-app.config['MYSQL_PASSWORD'] = 'Aj@1804'
-app.config['MYSQL_DB'] = 'sen_project'
-Mysql = MySQL(app)
+
+# === MySQL Connection using mysql-connector ===
+def get_db_connection():
+    return mysql.connector.connect(
+        host='106.215.180.86',
+        user='MYDB1234',
+        password='Aj@1804',
+        database='sen_project'
+    )
+
 # Home Page
 @app.route('/')
 def home():
