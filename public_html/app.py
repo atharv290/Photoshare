@@ -112,24 +112,6 @@ def signup():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    if request.method == 'POST':
-        email = request.form['email']
-        password = request.form['password']
-        # Hash the entered password for comparison
-        hash_p = hashlib.sha256(password.encode("utf-8")).hexdigest()
-        cur = get_db_connection().connection.cursor()
-        try:
-            cur.execute("SELECT Email, Password FROM user_logins WHERE Email = %s", (email,))
-            user = cur.fetchone()
-            if user and hash_p == user[1]:  # Compare hashed passwords
-                session['email'] = user[0]  # Store email in session
-                return redirect(url_for('home'))
-            else:
-                return render_template('index.html', error="Invalid email or password")
-        except Exception as e:
-            return f"Error: {e}", 500
-        finally:
-            cur.close()
     return render_template('index.html')
 #handle logout Logic
 @app.route('/logout')
