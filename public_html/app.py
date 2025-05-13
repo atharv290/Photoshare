@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, jsonify, session
+from flask import Flask, render_template, request, redirect, url_for, jsonify, session,flash
 from flask_mysqldb import MySQL
 import hashlib
 import os
@@ -22,39 +22,65 @@ from sklearn.preprocessing import OneHotEncoder
 from sklearn.pipeline import Pipeline
 from sklearn.compose import ColumnTransformer
 from MySQLdb.cursors import DictCursor
+from sklearn.impute import SimpleImputer
 def generate_random_code(length=8):
     characters = string.ascii_letters + string.digits  # Combine letters and digits
     return ''.join(random.choices(characters, k=length))
+# Load the dataset
+# Load the dataset
 if os.path.exists('public_html/Data/photography_dataset.csv'):
     dataset_path = 'public_html/Data/photography_dataset.csv'
-    data = pd.read_csv(dataset_path)
+    print(f"Dataset found at: {dataset_path}")
+    data = pd.read_csv(dataset_path, na_values=["", "NA", "N/A", "null"])  # Handle empty values
+    print("Dataset loaded successfully")
 else:
-    print("not found")
-# Splitting features and target
-X = data.drop(columns=['Cost'])
-y = data['Cost']
+    print("Dataset not found. Using default data.")
+    data = pd.DataFrame()  # Use an empty DataFrame as a fallback
 
-# Preprocessing categorical features
-categorical_features = ['Event Type', 'Location', 'Editing Level', 'Additional Services']
-numeric_features = ['Duration (hrs)', 'Photographers', 'Photographer Rating']
+# Continue with your app logic
+if not data.empty:
+    # Check if required columns exist
+    required_columns = ['Event Type', 'Location', 'Editing Level', 'Additional Services',
+                        'Duration (hrs)', 'Photographers', 'Photographer Rating', 'Cost']
+    missing_columns = [col for col in required_columns if col not in data.columns]
+    
+    if missing_columns:
+        print(f"Missing required columns: {missing_columns}. Skipping model training.")
+    else:
+        # Define X and y
+        X = data.drop(columns=['Cost'])
+        y = data['Cost']
 
-preprocessor = ColumnTransformer([
-    ('cat', OneHotEncoder(handle_unknown='ignore'), categorical_features),
-    ('num', 'passthrough', numeric_features)
-])
+        # Preprocessing features
+        categorical_features = ['Event Type', 'Location', 'Editing Level', 'Additional Services']
+        numeric_features = ['Duration (hrs)', 'Photographers', 'Photographer Rating']
 
-# Building pipeline
-model = Pipeline([
-    ('preprocessor', preprocessor),
-    ('regressor', LinearRegression())
-])
+        # Define transformers
+        categorical_transformer = OneHotEncoder(handle_unknown='ignore')
+        numeric_transformer = Pipeline(steps=[
+            ('imputer', SimpleImputer(strategy='mean'))
+        ])
 
-# Splitting data
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+        # Build column transformer
+        preprocessor = ColumnTransformer([
+            ('cat', categorical_transformer, categorical_features),
+            ('num', numeric_transformer, numeric_features)
+        ])
 
-# Training model
-model.fit(X_train, y_train)
+        # Create pipeline
+        model = Pipeline([
+            ('preprocessor', preprocessor),
+            ('regressor', LinearRegression())
+        ])
 
+        # Split the dataset
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+        # Train the model
+        model.fit(X_train, y_train)
+        print("Model trained successfully")
+else:
+    print("No data available for processing. Skipping model training.")
 # Example usag
 app = Flask(__name__)
 # Set the directory for image uploads
@@ -66,9 +92,9 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 #import mysql.connector
 app.secret_key = '1234'
-app.config['MYSQL_HOST'] = 'localhost'
-app.config['MYSQL_USER'] = 'root'
-app.config['MYSQL_PASSWORD'] = ''
+app.config['MYSQL_HOST'] = '106.215.180.86'
+app.config['MYSQL_USER'] = 'MYDB1234'
+app.config['MYSQL_PASSWORD'] = 'Aj@1804'
 app.config['MYSQL_DB'] = 'sen_project'
 Mysql = MySQL(app)
 # Home Page
@@ -280,41 +306,66 @@ def get_images():
         if 'cur' in locals() and cur:
             cur.close()
 
+
 @app.route('/update_profile', methods=['POST'])
 def update_profile():
-    #public_html\static\uploads\IMG20210201145428.jpg
     if 'admin_email' not in session:
         return "Unauthorized", 403  
+    
     new_name = request.form.get('name')
     new_bio = request.form.get('bio')
     file = request.files.get('profile_pic')
+    
     if file and file.filename != '' and allowed_file(file.filename):
         if not os.path.exists(app.config['UPLOAD_FOLDER']):
             os.makedirs(app.config['UPLOAD_FOLDER'])
+        
         filename = secure_filename(file.filename)
         file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        # Normalize path for cross-platform support (always use forward slashes `/`)
-        file_path = file_path.replace("\\", "/") 
+        file_path = file_path.replace("\\", "/")  # Normalize path for cross-platform support
         file.save(file_path)  # Save the file
-        relative_path = f"static/uploads/{filename}" #Ensure it's relative
+        
+        relative_path = f"static/uploads/{filename}"  # Ensure it's relative
+        
         cur = Mysql.connection.cursor()
         query1 = "SELECT profile_img FROM admin_logins WHERE Email = %s"
         email = session['admin_email']
         cur.execute(query1, (email,))  # Pass the email as a tuple
         row = cur.fetchone()
-        print(f"public_html/{row[0]}")
-        os.remove(f"public_html/{row[0]}")
+        
+        if row and row[0] and os.path.exists(f"public_html/{row[0]}"):
+            os.remove(f"public_html/{row[0]}")
+        
         cur.close()
+        
         try:
             cur = Mysql.connection.cursor()
             query = "UPDATE admin_logins SET Full_Name = %s, profile_img = %s, bio = %s WHERE Email = %s"
             cur.execute(query, (new_name, relative_path, new_bio, session['admin_email']))
             Mysql.connection.commit()
-            return jsonify({"message": "Profile updated successfully"}), 200
+            
+            # Fetch updated profile data
+            cur.execute("SELECT Full_Name, bio, profile_img FROM admin_logins WHERE Email = %s", (session['admin_email'],))
+            user1 = cur.fetchone()
+            
+            if user1:
+                profile_data = {
+                    'name': user1[0], 
+                    'bio': user1[1],   
+                    'profile_img': user1[2] if user1[2] else "static/uploads/default-profile.jpg"
+                }
+            else:
+                profile_data = None
+            
+            # Render the adminHome.html page with updated profile data
+            return render_template('adminHome.html', profile=profile_data)
+        
         except Exception as err:
             return f"Error: {err}", 500
+        
         finally:
             cur.close()
+    
     return "Invalid file or no file uploaded!", 400
 @app.route('/get-images-photographer', methods=['GET'])
 def get_images_photographer():
@@ -473,14 +524,13 @@ def photographer_profile(email):
     cur.execute(query_images, (email,))
     images = cur.fetchall()
     cur.close()
-
     photographer_images = [{"url": url_for('static', filename=f"uploads/{row[0]}")} for row in images]
-
     return render_template('adminProfile.html', 
                            name=full_name, 
                            profile_img=profile_img, 
                            bio=bio, 
-                           images=photographer_images)
+                           images=photographer_images,
+                           photographer_email=email)
 @app.route('/save-details', methods=['POST'])
 def save_details():
     try:
@@ -496,7 +546,7 @@ def save_details():
         location = data.get('location')
         editing_level = data.get('editing_level')
         additional_services = data.get('additional_services', '')
-        photographer_rating = data.get('photographer_rating')
+        photographer_rating = 4
         additional_details = data.get('additional_details', '')
         # Validate required fields
         if not all([name, email, event_type, duration, num_photographers, location, editing_level, photographer_rating]):
@@ -582,6 +632,79 @@ def like_post():
     except Exception as e:
         print(f"Error: {e}")
         return jsonify({'error': 'Internal Server Error'}), 500
+@app.route('/hire', methods=['POST'])
+def hire():
+    data = request.form
+    if data:
+        print("data received:",data)
+        print(session['email'])
+    user_email = session['email']
+    photographer_email = data.get('photographerEmail')
+    event_type = data.get('eventType')
+    event_date = data.get('eventDate')
+    event_location = data.get('eventLocation')
+    contact_info = data.get('contactInfo')
+    special_requests = data.get('specialRequests')
+    additional_info = data.get('additionalInfo')
+    budget = data.get('budget')
+    # Insert data into the MySQL database
+    cursor = Mysql.connect.cursor()
+    query = "INSERT INTO hires (user_email, photographer_email, event_type, event_date, event_location, contact_info, special_requests, additional_info, budget)VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)"
+    values = (user_email, photographer_email, event_type, event_date, event_location, contact_info, special_requests, additional_info, budget)
+    cursor.execute(query, values)
+    cursor.close()
+    return jsonify(success=True)
+
+@app.route('/get_private_codes', methods=['GET'])
+def get_private_codes():
+    try:
+        email = session['email']
+        print(email)
+        cur = Mysql.connection.cursor()
+        query = """
+            SELECT code, client_email, COUNT(*) AS occurrences 
+            FROM images2 
+            WHERE code IS NOT NULL AND client_email = %s 
+            GROUP BY code, client_email 
+            HAVING COUNT(*) > 1;
+        """
+        cur.execute(query, (email,))
+        rows = cur.fetchall()
+        codes = [row[0] for row in rows]
+        return jsonify({'codes': codes})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        cur.close()
+@app.route('/get-past-events', methods=['GET'])
+def get_past_events():
+    if 'admin_email' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    email = session['admin_email']
+    print(email)
+    try:
+        cur = Mysql.connection.cursor()
+        cur.execute("""
+            SELECT client_name, client_email, client_no, date
+            FROM  uploads_details
+            WHERE owner = %s
+            GROUP BY client_email, DATE(date)
+            ORDER BY date DESC
+        """, (email,))
+        data = cur.fetchall()
+        cur.close()
+        
+        results = [{
+            'client_name': row[0],
+            'client_email': row[1],
+            'client_no': row[2],
+            'date': str(row[3]),
+        } for row in data]
+
+        return jsonify({'clients': results})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)

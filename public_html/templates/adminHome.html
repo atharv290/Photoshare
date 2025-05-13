@@ -228,6 +228,7 @@
         <i class="fa fa-search"></i>
         <i class="fa fa-plus-circle"></i>
         <i class="fa fa-user"></i>
+        <button onclick="Check_notify">Check Notifications</button>
       </div>
     </div>
     <div class="container">
@@ -252,6 +253,7 @@
           <button class="post-btn" id="post_btn" onclick="uploadmodel()">
             Upload
           </button>
+          <button class="post-btn" onclick="showPastEvents()">Past Events</button>
           <a href="/logout" class="btn btn-primary">Logout</a>
         </div>
       </div>
@@ -363,6 +365,13 @@
     </div>
     <div id="successMessage" style="display: none; color: green"></div>
     <div id="errorMessage" style="display: none; color: red"></div>
+    <div class="modal-overlay" id="modal-overlay-past" onclick="closeModal()"></div>
+<div class="modal" id="pastEventsModal" style="display: none;">
+    <button class="close-btn" onclick="closeModal()">×</button>
+    <h2>Past Events</h2>
+    <div id="eventList"></div>
+</div>
+
     <script>
       // Handle drag-and-drop functionality
       const dropZone = document.getElementById("drop-zone");
@@ -412,6 +421,8 @@
         document.getElementById("modal-overlay2").style.display = "none";
         document.getElementById("upload").style.display = "none";
         document.getElementById("modal-overlay3").style.display = "none";
+        document.getElementById("pastEventsModal").style.display = "none";
+        document.getElementById("modal-overlay-past").style.display = "none";
       }
       // Function to expand an image in the modal
       function expandImage(url) {
@@ -441,6 +452,38 @@
           console.error("Error fetching images:", error);
         }
       }
+      function showPastEvents() {
+        document.getElementById("pastEventsModal").style.display = "block";
+        document.getElementById("modal-overlay-past").style.display = "block";
+    
+        fetch('/get-past-events')
+            .then(response => response.json())
+            .then(data => {
+                console.log(data)
+                const eventList = document.getElementById('eventList');
+                eventList.innerHTML = "";
+    
+                if (data.clients && data.clients.length > 0) {
+                    data.clients.forEach(client => {
+                        eventList.innerHTML += `
+                            <div style="margin-bottom: 15px; padding: 10px; border: 1px solid #ccc; border-radius: 8px;">
+                                <strong>Name:</strong> ${client.client_name}<br>
+                                <strong>Email:</strong> ${client.client_email}<br>
+                                <strong>Mobile:</strong> ${client.client_no}<br>
+                                <strong>Date:</strong> ${client.date}<br>
+                            </div>
+                        `;
+                    });
+                } else {
+                    eventList.innerHTML = "<p>No past Event found.</p>";
+                }
+            })
+            .catch(err => {
+                document.getElementById('eventList').innerHTML = "<p>Error loading events.</p>";
+                console.error(err);
+            });
+    }
+       
 
       // Fetch images on page load
       fetchImages();

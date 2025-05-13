@@ -265,12 +265,12 @@
 
         <!-- Sidebar -->
         <div class="sidebar">
-            <div class="widget">
-                <h3>Suggested Users</h3>
-                <p>User4</p>
-                <p>User5</p>
-                <p>User6</p>
-            </div>
+            <div class="widget" id="privateCodesWidget">
+                <h3>Private Gallery Codes</h3>
+                <div id="code-list">
+                    <p>Loading...</p>
+                </div>
+            </div>            
             <div class="widget">
                 <h3>Trending Hashtags</h3>
                 <p>#Photography</p>
@@ -302,7 +302,6 @@
                 <option value="Advanced">Advanced</option>
             </select>
             <input type="text" id="additional_services" name="additional_services" placeholder="Additional Services (e.g., Drone, Live Streaming)">
-            <input type="number" id="photographer_rating" name="photographer_rating" step="0.1" min="0" max="5" placeholder="Photographer Rating (0-5)" required>
             <textarea id="additional_details" name="additional_details" placeholder="Additional Details" rows="5"></textarea>
             <button type="submit">Hire Now</button>
         </form>
@@ -409,7 +408,32 @@
             }
         }
 
-        window.onload = fetchPosts;
+        async function fetchPrivateCodes() {
+            try {
+                const response = await fetch('/get_private_codes');
+                const data = await response.json();
+                const container = document.getElementById('code-list');
+        
+                if (data.codes && data.codes.length > 0) {
+                    container.innerHTML = '';
+                    data.codes.forEach(code => {
+                        const p = document.createElement('p');
+                        p.textContent = code;
+                        container.appendChild(p);
+                    });
+                } else {
+                    container.innerHTML = '<p>No private codes available.</p>';
+                }
+            } catch (error) {
+                document.getElementById('code-list').innerHTML = '<p>Error loading codes</p>';
+                console.error('Error fetching codes:', error);
+            }
+        }
+        
+        window.onload = () => {
+            fetchPosts();
+            fetchPrivateCodes();
+        };
     </script>
 </body>
 </html>
