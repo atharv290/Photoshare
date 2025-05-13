@@ -99,13 +99,13 @@ def signup():
         password = request.form['password']
         # Hash the password
         password_hash = hashlib.sha256(password.encode("utf-8")).hexdigest()
-        cur = Mysql.connection.cursor()
+        cur = get_db_connection().connection.cursor()
         try:
             cur.execute(
                 "INSERT INTO user_logins (Full_Name, Email, Password) VALUES (%s, %s, %s)",
                 (name, email, password_hash)
             )
-            Mysql.connection.commit()
+            get_db_connection().connection.commit()
             return redirect(url_for('login'))
         except Exception as e:
             return f"Error: {e}", 500
@@ -120,7 +120,7 @@ def login():
         password = request.form['password']
         # Hash the entered password for comparison
         hash_p = hashlib.sha256(password.encode("utf-8")).hexdigest()
-        cur = Mysql.connection.cursor()
+        cur = get_db_connection().connection.cursor()
         try:
             cur.execute("SELECT Email, Password FROM user_logins WHERE Email = %s", (email,))
             user = cur.fetchone()
@@ -148,11 +148,11 @@ def admin_s():
         name = request.form['name']
         email = request.form['email']
         password = request.form['password']
-        cur = Mysql.connection.cursor()
+        cur = get_db_connection().connection.cursor()
         cur.execute(
     "INSERT INTO admin_logins (Full_Name, Email, Password) VALUES (%s, %s, %s)",
     (name, email, password))
-        Mysql.connection.commit()
+        get_db_connection().connection.commit()
         cur.close()
         return render_template('admin.html')
     return render_template('admin.html')
@@ -163,7 +163,7 @@ def admin_l():
     if request.method == 'POST':
         email = request.form['email']
         password = request.form['password']
-        cur = Mysql.connection.cursor()
+        cur = get_db_connection().connection.cursor()
         cur.execute("SELECT Email, Password FROM admin_logins WHERE Email = %s", (email,))
         user = cur.fetchone()
         cur.execute("SELECT Full_Name, bio, profile_img FROM admin_logins WHERE Email = %s", (email,))
@@ -205,7 +205,7 @@ def upload_files():
     status = request.form['status']
 
     try:
-        cur = Mysql.connection.cursor()
+        cur = get_db_connection().connection.cursor()
         for file in files:
             if file and allowed_file(file.filename):
                 filename = secure_filename(file.filename)
@@ -226,7 +226,7 @@ def upload_files():
                     query = "INSERT INTO images2 (image_path, filename, Status, Date, price) VALUES (%s, %s, %s, %s, %s)"
                     cur.execute(query, (file_path, filename, status, date, cost))
 
-        Mysql.connection.commit()
+        get_db_connection().connection.commit()
         return "Files uploaded and paths stored in the database successfully!", 200
 
     except Exception as err:
@@ -248,7 +248,7 @@ def get_images():
         page = int(request.args.get('page', 1))
         per_page = int(request.args.get('per_page', 12))  # Show 12 images per page by default
 
-        cur = Mysql.connection.cursor()
+        cur = get_db_connection().connection.cursor()
 
         # Modify the query to support LIMIT and OFFSET for pagination
         if session.get('accessType') == 'private':
@@ -314,7 +314,7 @@ def update_profile():
         
         relative_path = f"static/uploads/{filename}"  # Ensure it's relative
         
-        cur = Mysql.connection.cursor()
+        cur = get_db_connection().connection.cursor()
         query1 = "SELECT profile_img FROM admin_logins WHERE Email = %s"
         email = session['admin_email']
         cur.execute(query1, (email,))  # Pass the email as a tuple
@@ -326,10 +326,10 @@ def update_profile():
         cur.close()
         
         try:
-            cur = Mysql.connection.cursor()
+            cur = get_db_connection().connection.cursor()
             query = "UPDATE admin_logins SET Full_Name = %s, profile_img = %s, bio = %s WHERE Email = %s"
             cur.execute(query, (new_name, relative_path, new_bio, session['admin_email']))
-            Mysql.connection.commit()
+            get_db_connection().connection.commit()
             
             # Fetch updated profile data
             cur.execute("SELECT Full_Name, bio, profile_img FROM admin_logins WHERE Email = %s", (session['admin_email'],))
@@ -357,7 +357,7 @@ def update_profile():
 @app.route('/get-images-photographer', methods=['GET'])
 def get_images_photographer():
     try:
-        cur = Mysql.connection.cursor()
+        cur = get_db_connection().connection.cursor()
         #caption	Email	Likes	post
         query = "SELECT caption,post,Likes,filename FROM photographer_posts WHERE Email = %s"
         cur.execute(query, (session['admin_email'],))  # Assuming 'public' status for non-private images
@@ -396,7 +396,7 @@ def post_images():
         os.makedirs(app.config['UPLOAD_FOLDER'])
     print(Caption)
     try:
-        cur = Mysql.connection.cursor()
+        cur = get_db_connection().connection.cursor()
         for file in files:
             if file and allowed_file(file.filename):
                 filename = secure_filename(file.filename)
@@ -407,7 +407,7 @@ def post_images():
                 #	caption	Email	Likes	post
                 query = "INSERT INTO photographer_posts (caption, post, Email, filename) VALUES (%s, %s, %s,%s)"
                 cur.execute(query, (Caption, file_path, email,filename))
-            Mysql.connection.commit()
+            get_db_connection().connection.commit()
             return "Files uploaded and paths stored in the database successfully!", 200
     except Exception as err:
         return f"Error: {err}", 500
@@ -424,12 +424,12 @@ def save_image_view():
         image_name = data.get('image_name')
         date = datetime.datetime.now() 
         # Save to database
-        cur = Mysql.connection.cursor()
+        cur = get_db_connection().connection.cursor()
       # Corrected query
         query = "INSERT INTO views (client_email, image_url, Date) VALUES (%s, %s, %s)"
         # Assuming 'email', 'image_name', and 'date' are already defined
         cur.execute(query, (email, image_name, date))
-        Mysql.connection.commit()
+        get_db_connection().connection.commit()
         return jsonify({'status': 'success', 'message': 'Data saved successfully'})
    except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
@@ -437,7 +437,7 @@ def save_image_view():
 @app.route('/fetchProfiles', methods=['GET'])
 def fetch_profiles():
     try:
-        cur = Mysql.connection.cursor()
+        cur = get_db_connection().connection.cursor()
         query = "SELECT Full_name, profile_img, bio,Email, ratings FROM admin_logins"
         cur.execute(query)
         rows = cur.fetchall()
@@ -493,7 +493,7 @@ def photographers_profiles():
 
 @app.route('/photographer/<email>')
 def photographer_profile(email):
-    cur = Mysql.connection.cursor()
+    cur = get_db_connection().connection.cursor()
 
     # Fetch photographer details
     query = "SELECT Full_Name, profile_img, bio FROM admin_logins WHERE Email = %s"
@@ -540,13 +540,13 @@ def save_details():
             return jsonify({"error": "All required fields must be filled!"}), 400
 
         # Insert into database
-        cur = Mysql.connection.cursor()
+        cur = get_db_connection().connection.cursor()
         sql = """INSERT INTO photographer_hiring_requests 
                  (name, email, event_type, duration, photographers_count, event_location, editing_level, additional_services, photographer_rating, additional_details) 
                  VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"""
         values = (name, email, event_type, duration, num_photographers, location, editing_level, additional_services, photographer_rating, additional_details)
         cur.execute(sql, values)
-        Mysql.connection.commit()
+        get_db_connection().connection.commit()
         cur.close()
         print("Cost : ",estimate_cost(event_type,duration,num_photographers,location,editing_level,additional_services,photographer_rating))
         return render_template("photographers_Profiles.html")
@@ -562,7 +562,7 @@ def estimate_cost(event_type, duration, photographers, location, editing_level, 
 
 def get_posts():
 
-    cursor = Mysql.connection.cursor()
+    cursor = get_db_connection().connection.cursor()
     cursor.execute("SELECT filename,caption,Like_count,Email FROM photographer_posts")  # Modify based on your DB schema
 
     posts = [{"filename": row[0], "image_url": f"static/uploads/{row[0]}", 
@@ -586,7 +586,7 @@ def like_post():
         if not post_id or not filename:
             return jsonify({'error': 'Missing post_id or filename'}), 400
 
-        cursor = Mysql.connection.cursor()
+        cursor = get_db_connection().connection.cursor()
 
         # Check if the user already liked the post
         cursor.execute("SELECT * FROM likes WHERE email = %s AND filename = %s", (post_id, filename))
@@ -596,13 +596,13 @@ def like_post():
             # Unlike: Remove from the likes table
             cursor.execute("DELETE FROM likes WHERE email = %s AND filename = %s", (post_id, filename))
             cursor.execute("UPDATE photographer_posts SET like_count = like_count - 1 WHERE filename = %s", (filename,))
-            Mysql.connection.commit()
+            get_db_connection().connection.commit()
             liked = False  # Now unliked
         else:
             # Like: Add to the likes table
             cursor.execute("INSERT INTO likes (email, filename) VALUES (%s, %s)", (post_id, filename))
             cursor.execute("UPDATE photographer_posts SET like_count = like_count + 1 WHERE filename = %s", (filename,))
-            Mysql.connection.commit()
+            get_db_connection().connection.commit()
             liked = True  # Now liked
 
         # Get the updated like count
@@ -634,8 +634,8 @@ def hire():
     special_requests = data.get('specialRequests')
     additional_info = data.get('additionalInfo')
     budget = data.get('budget')
-    # Insert data into the MySQL database
-    cursor = Mysql.connect.cursor()
+    # Insert data into the get_db_connection() database
+    cursor = get_db_connection().connect.cursor()
     query = "INSERT INTO hires (user_email, photographer_email, event_type, event_date, event_location, contact_info, special_requests, additional_info, budget)VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)"
     values = (user_email, photographer_email, event_type, event_date, event_location, contact_info, special_requests, additional_info, budget)
     cursor.execute(query, values)
@@ -647,7 +647,7 @@ def get_private_codes():
     try:
         email = session['email']
         print(email)
-        cur = Mysql.connection.cursor()
+        cur = get_db_connection().connection.cursor()
         query = """
             SELECT code, client_email, COUNT(*) AS occurrences 
             FROM images2 
@@ -671,7 +671,7 @@ def get_past_events():
     email = session['admin_email']
     print(email)
     try:
-        cur = Mysql.connection.cursor()
+        cur = get_db_connection().connection.cursor()
         cur.execute("""
             SELECT client_name, client_email, client_no, date
             FROM  uploads_details
