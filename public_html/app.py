@@ -8,9 +8,6 @@ from werkzeug.utils import secure_filename
 import random
 import datetime
 import string
-from google.cloud import vision
-from google.cloud.vision import ImageAnnotatorClient
-import io
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
