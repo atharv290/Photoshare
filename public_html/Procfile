@@ -1,1 +1,1 @@
-web: waitress-serve --call 'app:app'
+web: waitress-serve --call 'public_html.app:app'
